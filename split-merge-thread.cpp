@@ -70,17 +70,16 @@ int main( int argc, char** argv )
     for(int i=0; i<N; i++){
         // The number of cores is the optimal number of threads
         // It takes 1 ms to create and destroy 10 threads
-        auto start = std::chrono::system_clock::now();
-
-        split_merge(image1, gray1);
-
-        auto stop = std::chrono::system_clock::now();
-        std::cout<<"Parallel took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms\n";
 
         auto start1 = std::chrono::system_clock::now();
         GaussianBlur(image1, gray1, Size (5,5), 1.0, 1.0, 0);
         auto stop1 = std::chrono::system_clock::now();
         std::cout<<"Serial took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop1 - start1).count() << " ms\n";
+
+        auto start = std::chrono::system_clock::now();
+        split_merge(image1, gray1);
+        auto stop = std::chrono::system_clock::now();
+        std::cout<<"Parallel took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms\n";
     }
     return 0;
 
