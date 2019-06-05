@@ -13,7 +13,8 @@ int main(){
     auto start = std::chrono::system_clock::now();
     int count = 0;
     for(int i=0; i<2000; i++) {
-        cout<<"The longer the string the greater the overhead "<<count++<<endl;
+        cout<<"The longer the string the greater the overhead "<<count<<endl;
+        count++;
     }
     auto stop = std::chrono::system_clock::now();
     std::cout<<"Overhead took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms\n";
