@@ -22,6 +22,24 @@ void unsecure_print(string name){
     // If you forget to unlock the mutex, it will remain locked as well.
 }
 
+
+void doesnot_work_print(string name){
+    cout <<"Name : "<< name <<endl;
+    // It could print anything in any sequence. One thread might interrupt other and everything could 
+    // end up in the same line.
+    
+    //Example1
+    //Name : Wasim
+    //Name : Akram
+    //Name : Khan
+    
+    //Example2
+    //Name : WasimName:Khan
+    //
+    //Name : Akram
+    
+}
+
 int main()
 {
     string name1 = "Wasim";
