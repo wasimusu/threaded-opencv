@@ -13,6 +13,18 @@ void print(string name){
     cout <<"Name : "<< name <<endl;
 }
 
+void block_lock(string name){
+    //The contigous block below is locked. Rest is not.
+    unique_lock<mutex> locker(mu);
+    cout<<"\nName : "<< name<<endl;
+    locker.unlock();
+
+    // I can do anything here. It's not locked and can enjoy parallel execution.
+    int N = 10;
+    for(int i = 0; i < N; i++){}
+    cout<<name<<"\t"<<N<<endl;
+}
+
 void unsecure_print(string name){
     mu.lock();
     cout <<"Name : "<< name <<endl;
