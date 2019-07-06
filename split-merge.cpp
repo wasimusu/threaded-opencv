@@ -16,17 +16,20 @@
 using namespace cv;
 using namespace std;
 
-void op(Mat image){
-    rotate(image, image, 2);
-//    cv::resize(image, image, cv::Size(), 2, 2, INTER_CUBIC);
-//    image.convertTo(image, CV_32FC3);
-//    cv::normalize(image, image, 0, 65535, NORM_MINMAX); // Works only for NIR images.
-//    image.convertTo(image, CV_16UC3);
+void someOp(Mat& image, Mat& output){
+    // Not all operations are suitable for split and merge technique.
+    // Like those that change the size of output or number of channels or other things that require global context like normalization.
+
+    image.convertTo(image, CV_32FC3, 10);
+    rotate(image, output, 1);
+    GaussianBlur(image, output, Size(5, 5), 1.0, 1.0, 0);
+    image.convertTo(image, CV_16UC3, 0.10);
 }
 
-void parallel(Mat input, Mat output) {
+void parallel(Mat& input, Mat& output) {
     int rows = input.rows;
     int cols = input.cols;
+//    output = Mat(input.rows, input.cols, CV_16UC3);
 
     Rect r1 = Rect(0, 0, cols / 2, rows / 2);
     Rect r2 = Rect(cols / 2, 0, cols / 2, rows / 2);
@@ -42,31 +45,34 @@ void parallel(Mat input, Mat output) {
     Mat im1 = input(rois[1]);
     Mat im2 = input(rois[2]);
     Mat im3 = input(rois[3]);
-    vector<Mat> ims = {im0, im1, im2, im3};
+    vector<Mat> inputs = {im0, im1, im2, im3};
+    Mat o1, o2, o3, o4;
+    vector<Mat> outputs = {o1, o2, o3, o4};
 
-    for (int i = 0; i < 4; i++)
-        threads.push_back(thread(op, ims[i]));
+    for (int i = 0; i < rois.size(); i++) {
+//        threads.push_back(std::thread(someOp, inputs[i], outputs[i]));
+        threads.push_back(std::thread(someOp, std::ref(inputs[i]), std::ref(inputs[i])));
+    }
 
-    // Wait for all the threads to finish their task
+    //     Wait for all the threads to finish their task
     for (int i = 0; i < threads.size(); i++)
         threads[i].join();
 
-    // Merge rois into single image
-    input(rois[0]) = im0;
-    input(rois[1]) = im1;
-    input(rois[2]) = im2;
-    input(rois[3]) = im3;
+    // Copying back to the output is the most expensive part here.
+    for(int i = 0; i<4; i++) {
+        inputs[i].copyTo(input(rois[i]));
+    }
 }
 
-void serial(Mat image, Mat output){
-    op(image);
+void serial(Mat& image, Mat& output){
+    someOp(image, output);
 }
 
 int main(int argc, char **argv) {
     string fname = "WPImage.tif";
     Mat image = imread(fname);
-    Mat parallelIm = image.clone();
-    Mat serialIm = image.clone();
+    Mat parallelIm;
+    Mat serialIm;
 
     int N = 5; // Multiple of 5
     for (int i = 0; i < N; i++) {
@@ -74,7 +80,7 @@ int main(int argc, char **argv) {
         // It takes 1 ms to create and destroy 10 threads
 
         auto start = std::chrono::system_clock::now();
-        parallel(image, parallelIm);
+        parallel(image, image);
         auto stop = std::chrono::system_clock::now();
         std::cout << "Parallel took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
                   << " ms\n";
@@ -89,11 +95,11 @@ int main(int argc, char **argv) {
 
     cv::namedWindow("serial");
     cv::namedWindow("Parallel");
-    imshow("serial", serialIm);
-    imshow("parallel", parallelIm);
-    waitKey(0);
-    waitKey(1000);
+//    imshow("serial", serialIm);
+    imwrite("Parallel.tif", image);
+//    imshow("parallel", serialIm);
+//    cout<<"Serial Image : "<<serialIm.rows<<"\t"<<serialIm.cols<<endl;
+//    waitKey(1000);
+//    waitKey(1000);
     return 0;
-
-    // Serial is faster than parallel
 }
