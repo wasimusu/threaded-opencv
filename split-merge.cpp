@@ -16,7 +16,15 @@
 using namespace cv;
 using namespace std;
 
-void split_merge(Mat input, Mat output) {
+void op(Mat image){
+    rotate(image, image, 2);
+//    cv::resize(image, image, cv::Size(), 2, 2, INTER_CUBIC);
+//    image.convertTo(image, CV_32FC3);
+//    cv::normalize(image, image, 0, 65535, NORM_MINMAX); // Works only for NIR images.
+//    image.convertTo(image, CV_16UC3);
+}
+
+void parallel(Mat input, Mat output) {
     int rows = input.rows;
     int cols = input.cols;
 
@@ -27,44 +35,64 @@ void split_merge(Mat input, Mat output) {
     vector<Rect> rois{r1, r2, r3, r4};
 
     // Split the tasks into several threads
-    vector<thread> threads;
+    vector<std::thread> threads;
+
+    // Split into rois
+    Mat im0 = input(rois[0]);
+    Mat im1 = input(rois[1]);
+    Mat im2 = input(rois[2]);
+    Mat im3 = input(rois[3]);
+    vector<Mat> ims = {im0, im1, im2, im3};
+
     for (int i = 0; i < 4; i++)
-        threads.push_back(thread(GaussianBlur, input(rois[i]), output(rois[i]), Size(5, 5), 1.0, 1.0, 0));
+        threads.push_back(thread(op, ims[i]));
 
     // Wait for all the threads to finish their task
     for (int i = 0; i < threads.size(); i++)
         threads[i].join();
+
+    // Merge rois into single image
+    input(rois[0]) = im0;
+    input(rois[1]) = im1;
+    input(rois[2]) = im2;
+    input(rois[3]) = im3;
+}
+
+void serial(Mat image, Mat output){
+    op(image);
 }
 
 int main(int argc, char **argv) {
-    string names[] = {"rj.png", "rj2.png", "rj3.png", "rj4.png", "rj5.png"};
-    string gnames[] = {"grj.png", "grj2.png", "grj3.png", "grj4.png", "grj5.png"};
+    string fname = "WPImage.tif";
+    Mat image = imread(fname);
+    Mat parallelIm = image.clone();
+    Mat serialIm = image.clone();
 
-    Mat image1, image2, image3, image4, image5;
-    image1 = imread(names[0], IMREAD_COLOR);
-
-    // Creating placeholders for grayscaled images
-    Mat gray1 = cv::Mat::zeros(image1.rows, image1.cols, CV_8UC3);
-    cout << "Blurred image channels : " << gray1.channels() << endl;
-
-    cout << "Filename : " << names[0] << endl;
     int N = 5; // Multiple of 5
     for (int i = 0; i < N; i++) {
         // The number of cores is the optimal number of threads
         // It takes 1 ms to create and destroy 10 threads
 
+        auto start = std::chrono::system_clock::now();
+        parallel(image, parallelIm);
+        auto stop = std::chrono::system_clock::now();
+        std::cout << "Parallel took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
+                  << " ms\n";
+
         auto start1 = std::chrono::system_clock::now();
-        GaussianBlur(image1, gray1, Size(5, 5), 1.0, 1.0, 0);
+        serial(image, serialIm);
         auto stop1 = std::chrono::system_clock::now();
         std::cout << "Serial took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop1 - start1).count()
                   << " ms\n";
 
-        auto start = std::chrono::system_clock::now();
-        split_merge(image1, gray1);
-        auto stop = std::chrono::system_clock::now();
-        std::cout << "Parallel took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
-                  << " ms\n";
     }
+
+    cv::namedWindow("serial");
+    cv::namedWindow("Parallel");
+    imshow("serial", serialIm);
+    imshow("parallel", parallelIm);
+    waitKey(0);
+    waitKey(1000);
     return 0;
 
     // Serial is faster than parallel
