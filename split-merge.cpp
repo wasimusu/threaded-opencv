@@ -19,17 +19,18 @@ using namespace std;
 void someOp(Mat& image, Mat& output){
     // Not all operations are suitable for split and merge technique.
     // Like those that change the size of output or number of channels or other things that require global context like normalization.
+    // multiply.
+    // resize and rotate will require smart merging.
 
-    image.convertTo(image, CV_32FC3, 10);
-    rotate(image, output, 1);
-    GaussianBlur(image, output, Size(5, 5), 1.0, 1.0, 0);
-    image.convertTo(image, CV_16UC3, 0.10);
+    rotate(output, output, 1);
+    image.convertTo(output, CV_32FC3, 10);
+    cv::multiply(output, output, output);
+    output.convertTo(output, CV_16UC3, 0.10);
 }
 
 void parallel(Mat& input, Mat& output) {
     int rows = input.rows;
     int cols = input.cols;
-//    output = Mat(input.rows, input.cols, CV_16UC3);
 
     Rect r1 = Rect(0, 0, cols / 2, rows / 2);
     Rect r2 = Rect(cols / 2, 0, cols / 2, rows / 2);
@@ -50,17 +51,15 @@ void parallel(Mat& input, Mat& output) {
     vector<Mat> outputs = {o1, o2, o3, o4};
 
     for (int i = 0; i < rois.size(); i++) {
-//        threads.push_back(std::thread(someOp, inputs[i], outputs[i]));
         threads.push_back(std::thread(someOp, std::ref(inputs[i]), std::ref(inputs[i])));
     }
 
-    //     Wait for all the threads to finish their task
-    for (int i = 0; i < threads.size(); i++)
+    // Wait for all the threads to finish their task
+    // Copying back to the output is the only overhead of merge and split technique.
+    // Smartly waiting for threads to complete their jobs.
+    for (int i = 0; i < threads.size(); i++) {
         threads[i].join();
-
-    // Copying back to the output is the most expensive part here.
-    for(int i = 0; i<4; i++) {
-        inputs[i].copyTo(input(rois[i]));
+        inputs[i].copyTo(input(rois[3-i])); // Merge it smartly to allow rotation and resizing as well.
     }
 }
 
