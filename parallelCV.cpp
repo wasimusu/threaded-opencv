@@ -27,6 +27,15 @@ public:
     inputImage(inputImage), outputImage(outputImage), diff(diff){}
 
     virtual void operator()(const cv::Range& range) const{
+        int rows = inputImage.rows;
+        int cols = inputImage.cols;
+
+        cv::Rect r1 = cv::Rect(0, 0, cols / 2, rows / 2);
+        cv::Rect r2 = cv::Rect(cols / 2, 0, cols / 2, rows / 2);
+        cv::Rect r3 = cv::Rect(0, rows / 2, cols / 2, rows / 2);
+        cv::Rect r4 = cv::Rect(cols / 2, rows / 2, cols / 2, rows / 2);
+        std::vector <cv::Rect> rois{r1, r2, r3, r4};
+
         for(int i = range.start; i < range.end; i++){
             // Not all operations are suitable for split and merge technique.
             // Like those that change the size of output or number of channels or other things that require global context like normalization.
@@ -34,24 +43,25 @@ public:
             // resize and rotate will require smart merging.
 
             // Divide image in diff number of parts and process simultaneously
-            cv::Mat in(outputImage, cv::Rect(0, (outputImage.rows/diff)*i, outputImage.cols, outputImage.rows/diff));
-            cv::Mat out(outputImage, cv::Rect(0, (outputImage.rows/diff)*i, outputImage.cols, outputImage.rows/diff));
+            int j = 3 - i;
+            cv::Mat in(inputImage, rois[i]);
+            cv::Mat out(outputImage, rois[3 - i]);
 
-            std::cout<<"Thread "<<i <<std::endl;
-            out.convertTo(out, CV_8UC3, 0.10);
-            cv::GaussianBlur(in, out, cv::Size(175, 175), 1.0, 1.0, 0); // Fine
-            cv::rotate(out, out, 1); // Fine
-            std::cout<<"Join "<<i<<std::endl;
+            cv::rotate(in, out, 1); // Fine
+//            cv::namedWindow("ROI");
+//            cv::imshow("ROI", outputImage);
+//            cv::waitKey(100);
         }
     }
 };
 
 int main(){
-    std::string fname = "RGB_ref.jpg";
+    std::string fname = "quote.jpg";
     cv::Mat image = cv::imread(fname);
     cv::Mat out = image.clone();
 
     // create 8 threads and use TBB
-    cv::parallel_for_(cv::Range(0, 8), ParallelOpenCV(image, out, 8));
+    const int num_threads = 4;
+    cv::parallel_for_(cv::Range(0, num_threads), ParallelOpenCV(image, out, num_threads));
     cv::imwrite("Out.jpg", out);
 }
