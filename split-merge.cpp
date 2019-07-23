@@ -13,45 +13,46 @@
 #include <stdio.h>
 #include <vector>
 
-using namespace cv;
-using namespace std;
+//using namespace cv;
+//using namespace std;
 
-void someOp(Mat& image, Mat& output){
+void someOp(cv::Mat& image, cv::Mat& output){
     // Not all operations are suitable for split and merge technique.
     // Like those that change the size of output or number of channels or other things that require global context like normalization.
     // multiply.
     // resize and rotate will require smart merging.
 
-    rotate(output, output, 1);
+    cv::rotate(output, output, 1);
     image.convertTo(output, CV_32FC3, 10);
-    cv::multiply(output, output, output);
+//    cv::multiply(output, output, output);
     output.convertTo(output, CV_16UC3, 0.10);
 }
 
-void parallel(Mat& input, Mat& output) {
+void parallelold(cv::Mat& input, cv::Mat& output) {
     int rows = input.rows;
     int cols = input.cols;
 
-    Rect r1 = Rect(0, 0, cols / 2, rows / 2);
-    Rect r2 = Rect(cols / 2, 0, cols / 2, rows / 2);
-    Rect r3 = Rect(0, rows / 2, cols / 2, rows / 2);
-    Rect r4 = Rect(cols / 2, rows / 2, cols / 2, rows / 2);
-    vector<Rect> rois{r1, r2, r3, r4};
+    cv::Rect r1 = cv::Rect(0, 0, cols / 2, rows / 2);
+    cv::Rect r2 = cv::Rect(cols / 2, 0, cols / 2, rows / 2);
+    cv::Rect r3 = cv::Rect(0, rows / 2, cols / 2, rows / 2);
+    cv::Rect r4 = cv::Rect(cols / 2, rows / 2, cols / 2, rows / 2);
+    std::vector<cv::Rect> rois{r1, r2, r3, r4};
 
     // Split the tasks into several threads
-    vector<std::thread> threads;
+    std::vector<std::thread> threads;
 
     // Split into rois
-    Mat im0 = input(rois[0]);
-    Mat im1 = input(rois[1]);
-    Mat im2 = input(rois[2]);
-    Mat im3 = input(rois[3]);
-    vector<Mat> inputs = {im0, im1, im2, im3};
-    Mat o1, o2, o3, o4;
-    vector<Mat> outputs = {o1, o2, o3, o4};
+    cv::Mat im0 = input(rois[0]);
+    cv::Mat im1 = input(rois[1]);
+    cv::Mat im2 = input(rois[2]);
+    cv::Mat im3 = input(rois[3]);
+    std::vector<cv::Mat> inputs = {im0, im1, im2, im3};
+    cv::Mat o1, o2, o3, o4;
+    std::vector<cv::Mat> outputs = {o1, o2, o3, o4};
+    output = input.clone();
 
     for (int i = 0; i < rois.size(); i++) {
-        threads.push_back(std::thread(someOp, std::ref(inputs[i]), std::ref(inputs[i])));
+        threads.push_back(std::thread(someOp, std::ref(inputs[i]), std::ref(outputs[i])));
     }
 
     // Wait for all the threads to finish their task
@@ -59,27 +60,64 @@ void parallel(Mat& input, Mat& output) {
     // Smartly waiting for threads to complete their jobs.
     for (int i = 0; i < threads.size(); i++) {
         threads[i].join();
-        inputs[i].copyTo(input(rois[3-i])); // Merge it smartly to allow rotation and resizing as well.
+        outputs[i].copyTo(output(rois[3-i])); // Merge it smartly to allow rotation and resizing as well.
     }
 }
 
-void serial(Mat& image, Mat& output){
+void parallel(cv::Mat& input, cv::Mat& output) {
+    // Parallelize without having to copy at the end. Copying can be huge overhead.
+
+    int rows = input.rows;
+    int cols = input.cols;
+
+    cv::Rect r1 = cv::Rect(0, 0, cols / 2, rows / 2);
+    cv::Rect r2 = cv::Rect(cols / 2, 0, cols / 2, rows / 2);
+    cv::Rect r3 = cv::Rect(0, rows / 2, cols / 2, rows / 2);
+    cv::Rect r4 = cv::Rect(cols / 2, rows / 2, cols / 2, rows / 2);
+    std::vector<cv::Rect> rois{r1, r2, r3, r4};
+
+    // Split the tasks into several threads
+    std::vector<std::thread> threads;
+    output = input.clone();
+    for (int i = 0; i < rois.size(); i++) {
+        cv::Mat in(input, rois[i]);
+        cv::Mat out(output, rois[3-1]);
+        threads.push_back(std::thread(someOp, std::ref(in), std::ref(out)));
+    }
+
+    // Wait for all the threads to finish their task
+    // Smartly waiting for threads to complete their jobs.
+    for (int i = 0; i < threads.size(); i++) {
+        threads[i].join();
+    }
+}
+
+
+void serial(cv::Mat& image, cv::Mat& output){
     someOp(image, output);
 }
 
 int main(int argc, char **argv) {
-    string fname = "WPImage.tif";
-    Mat image = imread(fname);
-    Mat parallelIm;
-    Mat serialIm;
+    std::string fname = "WPImage.tif";
+    cv::Mat image = cv::imread(fname);
+    cv::Mat parallelIm;
+    cv::Mat serialIm;
+    cv::Mat parallelNew;
 
     int N = 5; // Multiple of 5
     for (int i = 0; i < N; i++) {
         // The number of cores is the optimal number of threads
         // It takes 1 ms to create and destroy 10 threads
 
+
+        auto start2 = std::chrono::system_clock::now();
+        parallelold(image, parallelIm);
+        auto stop2 = std::chrono::system_clock::now();
+        std::cout << "Parallel Old took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop2 - start2).count()
+                  << " ms\n";
+
         auto start = std::chrono::system_clock::now();
-        parallel(image, image);
+        parallel(image, parallelNew);
         auto stop = std::chrono::system_clock::now();
         std::cout << "Parallel took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
                   << " ms\n";
@@ -90,15 +128,9 @@ int main(int argc, char **argv) {
         std::cout << "Serial took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop1 - start1).count()
                   << " ms\n";
 
+        std::cout<<std::endl;
     }
 
-    cv::namedWindow("serial");
-    cv::namedWindow("Parallel");
-//    imshow("serial", serialIm);
-    imwrite("Parallel.tif", image);
-//    imshow("parallel", serialIm);
-//    cout<<"Serial Image : "<<serialIm.rows<<"\t"<<serialIm.cols<<endl;
-//    waitKey(1000);
-//    waitKey(1000);
+    cv::imwrite("Parallel.tif", parallelNew);
     return 0;
 }
