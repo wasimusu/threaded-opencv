@@ -17,7 +17,6 @@
 using namespace cv;
 using namespace std;
 
-
 int main(int argc, char **argv) {
 
     string fname = "sample_image.tif";
@@ -42,24 +41,6 @@ int main(int argc, char **argv) {
     cv::namedWindow("Image", cv::WINDOW_AUTOSIZE);
     cv::imshow("Image", image);
     cv::waitKey(0);
-
-    //------------------------------------------------------------------------
-
-//    image.convertTo(image, CV_16UC3);
-//    i = image.at<Vec3s>(0,0);
-
-//    image = cv::Mat(cv::Size(800,800), CV_8UC1, cv::Scalar(0.1));//, 255, 255));
-//    auto i = image.at<Scalar>(0,0);
-//
-//    image = cv::Mat(cv::Size(800,800), CV_16UC3, cv::Scalar(0.1, 255, 60000));
-//    auto i = image.at<Vec3s>(0,0);
-
-//    image = cv::Mat(cv::Size(800,800), CV_16UC3, cv::Scalar(0.1, 255, 65537));
-//    auto i = image.at<Vec3w>(0,0);
-
-//    cv::namedWindow("Image", cv::WINDOW_AUTOSIZE);
-//    cv::imshow("Image", image);
-//    cv::waitKey(0);
 
     //    inputImage.setTo(cv::Scalar(10,20,30));
     passingFunction(fname, image);
